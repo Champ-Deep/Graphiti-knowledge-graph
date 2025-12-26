@@ -1,6 +1,12 @@
 # Graphiti Knowledge Graph
 
-A temporal knowledge graph system for building AI-aware relationship maps from email communications. Designed to integrate with the CEO WhatsApp Assistant for intelligent account insights.
+A temporal knowledge graph system for building AI-aware relationship maps from email communications. Designed to integrate with the CEO WhatsApp Assistant for intelligent account insights via ElevenLabs.
+
+## 🚀 Quick Links
+
+- **[Deployment Guide](./DEPLOYMENT_GUIDE.md)** - Deploy to Railway, Render, DigitalOcean, or AWS
+- **[ElevenLabs Integration](./ELEVENLABS_INTEGRATION.md)** - Connect to WhatsApp for voice + text assistant
+- **[Quick Deploy Script](./deploy.sh)** - One-command deployment for Docker/Railway/Render
 
 ## Overview
 
@@ -15,16 +21,19 @@ This system ingests emails from Gmail/Outlook and builds a knowledge graph that 
 ## Architecture
 
 ```
-CEO WhatsApp Assistant
-        |
-        v
-   [API Server] (:8080)
-        |
-        v
-   [GraphitiService]
-        |
-        v
-   [Neo4j Database]
+WhatsApp (Text/Voice)
+        ↓
+ElevenLabs Agent (Conversational AI)
+        ↓
+Custom Tools (Real-time API calls)
+        ↓
+[FastAPI Server] (:8080) ← This Repository
+        ↓
+[GraphitiService] (Knowledge Graph Layer)
+        ↓
+[Neo4j Database] (Graph Storage)
+        ↓
+[Email Sources] (Gmail/Outlook sync)
 ```
 
 ## Quick Start
@@ -201,6 +210,64 @@ black .
 
 # Type check
 mypy .
+```
+
+## Production Deployment
+
+### Quick Deploy
+
+Use the included deployment script:
+
+```bash
+# Interactive menu
+./deploy.sh
+
+# Or specify platform directly
+./deploy.sh docker      # Local development
+./deploy.sh railway     # Cloud deployment (recommended)
+./deploy.sh render      # Free tier available
+```
+
+### Manual Deployment
+
+See detailed guides:
+- **Railway** (easiest): [DEPLOYMENT_GUIDE.md#railway-deployment](./DEPLOYMENT_GUIDE.md#railway-deployment)
+- **Render** (free tier): [DEPLOYMENT_GUIDE.md#render-deployment](./DEPLOYMENT_GUIDE.md#render-deployment)
+- **DigitalOcean** (cheapest): [DEPLOYMENT_GUIDE.md#digitalocean-vps-deployment](./DEPLOYMENT_GUIDE.md#digitalocean-vps-deployment)
+- **AWS** (enterprise): [DEPLOYMENT_GUIDE.md#aws-deployment](./DEPLOYMENT_GUIDE.md#aws-deployment)
+
+## ElevenLabs Integration
+
+After deployment, connect to ElevenLabs for WhatsApp voice + text assistant:
+
+1. **Deploy your API** (see above)
+2. **Secure your API** with authentication
+3. **Create ElevenLabs Agent** with custom tools
+4. **Connect WhatsApp Business** account
+5. **Test end-to-end**
+
+Full guide: **[ELEVENLABS_INTEGRATION.md](./ELEVENLABS_INTEGRATION.md)**
+
+### Example Conversations
+
+**Voice Call:**
+```
+CEO: "Brief me on Acme Corp"
+Assistant: "For Acme Corp, your key contacts are Sarah Johnson, CEO,
+           and Mike Chen, VP Engineering. You last spoke 3 days ago
+           about Q1 integration timelines. Personal note: Sarah's
+           daughter just started at Stanford."
+```
+
+**Text Message:**
+```
+CEO: "What did we discuss with Google last week?"
+Assistant: [Queries knowledge graph]
+          "Last week you discussed:
+          - API integration timeline with John Smith
+          - Enterprise pricing with Lisa Wang
+          - Security compliance requirements
+          Follow-up: Send pricing proposal by end of month"
 ```
 
 ## License

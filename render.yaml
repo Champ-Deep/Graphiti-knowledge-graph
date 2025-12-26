@@ -1,0 +1,56 @@
+# Render Blueprint for Graphiti Knowledge Graph API
+
+services:
+  - type: web
+    name: graphiti-api
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api_server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+
+    envVars:
+      # Python version
+      - key: PYTHON_VERSION
+        value: "3.11"
+
+      # Neo4j Database (use Neo4j Aura or external instance)
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USER
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+
+      # LLM Provider
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: MODEL_NAME
+        value: anthropic/claude-3.5-sonnet
+
+      # API Security
+      - key: API_KEY
+        generateValue: true
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: API_PORT
+        fromGroup: web
+
+      # Company Configuration
+      - key: TEAM_DOMAINS
+        sync: false
+
+      # Google OAuth (optional, for Gmail sync)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+# Note: Render doesn't provide Neo4j as a managed service
+# You'll need to use:
+# 1. Neo4j Aura (https://neo4j.com/cloud/aura/) - Recommended
+# 2. External Neo4j instance
+# 3. Railway Neo4j + Render API (hybrid approach)
