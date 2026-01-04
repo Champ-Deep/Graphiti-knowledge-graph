@@ -13,6 +13,7 @@ uvicorn[standard]>=0.24.0
 
 # HTTP Client
 httpx>=0.25.0
+aiohttp>=3.9.0
 
 # Google Workspace (Gmail)
 google-auth>=2.0.0
@@ -25,3 +26,15 @@ msal>=1.20.0
 # Async support
 asyncio-throttle>=1.0.0
 aiofiles>=23.0.0
+
+# NEW: Optional dependencies for sales intelligence platform
+# ==========================================================
+
+# Web Analytics (optional)
+# google-analytics-data>=0.18.0  # Uncomment if using Google Analytics
+
+# Data formats
+pyyaml>=6.0.1  # For config file parsing
+
+# OpenAI (for outreach personalization)
+openai>=1.0.0  # Already included via graphiti, but explicit for clarity

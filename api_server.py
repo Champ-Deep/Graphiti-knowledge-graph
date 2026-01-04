@@ -29,13 +29,82 @@ intent_scorer: Optional[IntentScorer] = None
 outreach_personalizer: Optional[OutreachPersonalizer] = None
 
 
+def validate_environment():
+    """Validate required environment variables and print helpful messages"""
+    print("\n" + "=" * 70)
+    print("🚀 Starting Graphiti Knowledge Graph API Server")
+    print("=" * 70 + "\n")
+
+    print("🔍 Validating configuration...")
+
+    errors = []
+    warnings = []
+
+    # Required variables
+    required = ['NEO4J_URI', 'NEO4J_USER', 'NEO4J_PASSWORD', 'OPENAI_API_KEY']
+    for var in required:
+        if not os.getenv(var):
+            errors.append(f"  ❌ {var} not set")
+        else:
+            print(f"  ✅ {var} configured")
+
+    # Optional enrichment APIs
+    optional_enrichment = {
+        'CLEARBIT_API_KEY': 'Clearbit',
+        'BUILTWITH_API_KEY': 'BuiltWith',
+        'PDL_API_KEY': 'People Data Labs',
+    }
+
+    enrichment_count = 0
+    for var, name in optional_enrichment.items():
+        if os.getenv(var):
+            print(f"  ✅ {name} enrichment enabled")
+            enrichment_count += 1
+
+    if enrichment_count == 0:
+        warnings.append("  ⚠️  No enrichment APIs configured (knowledge graph data only)")
+
+    # Optional data sources
+    if os.getenv('GA4_PROPERTY_ID'):
+        print("  ✅ Google Analytics enabled")
+    if os.getenv('LINKEDIN_ACCESS_TOKEN'):
+        print("  ✅ LinkedIn integration enabled")
+
+    # Print results
+    if errors:
+        print("\n❌ Configuration Errors:")
+        for error in errors:
+            print(error)
+        print("\nPlease set required environment variables in .env file")
+        print("See .env.example for template")
+        return False
+
+    if warnings:
+        print("\nℹ️  Optional Features:")
+        for warning in warnings:
+            print(warning)
+        print("  → Profiles will use email/knowledge graph data only")
+        print("  → Add enrichment API keys to .env for full functionality")
+
+    print("\n✅ Configuration valid!\n")
+    return True
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle"""
     global graphiti_service, profile_builder, intent_scorer, outreach_personalizer
+
+    # Validate environment first
+    if not validate_environment():
+        raise ValueError("Invalid configuration. Check environment variables.")
+
     settings = get_settings()
 
+    print("🔧 Initializing services...\n")
+
     # Initialize GraphitiService
+    print("  → Connecting to Neo4j...")
     graphiti_service = GraphitiService(
         neo4j_uri=settings.neo4j_uri,
         neo4j_user=settings.neo4j_user,
@@ -46,9 +115,10 @@ async def lifespan(app: FastAPI):
     )
 
     await graphiti_service.connect()
-    logger.info("Knowledge graph service connected")
+    print("  ✅ Connected to Neo4j\n")
 
     # Initialize enrichment configs (from environment variables)
+    print("  → Configuring enrichment APIs...")
     enrichment_configs = {}
 
     if os.getenv('CLEARBIT_API_KEY'):
@@ -60,29 +130,51 @@ async def lifespan(app: FastAPI):
     if os.getenv('PDL_API_KEY'):
         enrichment_configs['people-data-labs'] = {'api_key': os.getenv('PDL_API_KEY')}
 
+    if enrichment_configs:
+        print(f"  ✅ {len(enrichment_configs)} enrichment provider(s) configured\n")
+    else:
+        print("  ℹ️  No enrichment APIs (profiles will use graph data only)\n")
+
     # Initialize ProfileBuilder
+    print("  → Initializing profile builder...")
     profile_builder = ProfileBuilder(
         graphiti_service=graphiti_service,
         enrichment_configs=enrichment_configs
     )
-    logger.info("Profile builder initialized")
+    print("  ✅ Profile builder ready\n")
 
     # Initialize IntentScorer
+    print("  → Initializing intent scorer...")
     intent_scorer = IntentScorer(config=IntentScoringConfig())
-    logger.info("Intent scorer initialized")
+    print("  ✅ Intent scorer ready\n")
 
     # Initialize OutreachPersonalizer
+    print("  → Initializing outreach personalizer...")
     outreach_personalizer = OutreachPersonalizer(
         llm_provider="openai",
         model=os.getenv('OUTREACH_MODEL', 'gpt-4'),
         api_key=settings.openai_api_key
     )
-    logger.info("Outreach personalizer initialized")
+    print("  ✅ Outreach personalizer ready\n")
+
+    print("=" * 70)
+    print("✅ ALL SERVICES INITIALIZED")
+    print("=" * 70)
+    print("\n📡 API Endpoints Available:")
+    print("  • GET  /health - Health check")
+    print("  • POST /api/profiles/contact - Build contact profile")
+    print("  • POST /api/profiles/account - Build account profile")
+    print("  • POST /api/outreach/generate - Generate personalized outreach")
+    print("  • GET  /api/accounts/{name}/intent - Get intent score")
+    print("  • GET  /api/accounts/{name}/firmographics - Get firmographics")
+    print("\n📚 Documentation: http://localhost:{}/docs".format(os.getenv('API_PORT', '8080')))
+    print("=" * 70 + "\n")
 
     yield
 
+    print("\n🔌 Shutting down services...")
     await graphiti_service.disconnect()
-    logger.info("All services disconnected")
+    print("✅ All services disconnected\n")
 
 
 app = FastAPI(
