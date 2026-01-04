@@ -1,0 +1,163 @@
+# Data Sources Configuration
+# Configure all your data sources for the knowledge graph
+
+# Email Sources (already configured)
+email_sources:
+  gmail:
+    enabled: true
+    credentials_path: "credentials/gmail_credentials.json"
+    token_path: "credentials/gmail_token.json"
+
+  outlook:
+    enabled: false
+    client_id: "${OUTLOOK_CLIENT_ID}"
+    client_secret: "${OUTLOOK_CLIENT_SECRET}"
+    tenant_id: "${OUTLOOK_TENANT_ID}"
+
+# Web Analytics Sources
+web_analytics:
+  google_analytics:
+    enabled: false
+    provider: "google-analytics"
+    property_id: "${GA4_PROPERTY_ID}"
+    credentials_path: "credentials/ga4_credentials.json"
+
+  segment:
+    enabled: false
+    provider: "segment"
+    api_key: "${SEGMENT_API_KEY}"
+    workspace_slug: "${SEGMENT_WORKSPACE}"
+
+# Social Media Sources
+social_media:
+  linkedin:
+    enabled: false
+    access_token: "${LINKEDIN_ACCESS_TOKEN}"
+    organization_id: "${LINKEDIN_ORG_ID}"
+
+  twitter:
+    enabled: false
+    bearer_token: "${TWITTER_BEARER_TOKEN}"
+    account_id: "${TWITTER_ACCOUNT_ID}"
+
+# Enrichment APIs
+enrichment:
+  clearbit:
+    enabled: false
+    api_key: "${CLEARBIT_API_KEY}"
+
+  builtwith:
+    enabled: false
+    api_key: "${BUILTWITH_API_KEY}"
+
+  people_data_labs:
+    enabled: false
+    api_key: "${PDL_API_KEY}"
+
+# Sync Configuration
+sync:
+  # How often to sync each data source (in hours)
+  intervals:
+    email: 1  # Hourly
+    web_analytics: 24  # Daily
+    social_media: 12  # Twice daily
+    enrichment: 168  # Weekly (for re-enrichment)
+
+  # Batch sizes
+  batch_sizes:
+    email: 50
+    web_analytics: 1000
+    social_media: 100
+
+  # Historical data windows (how far back to fetch on first sync)
+  historical_windows:
+    email: 90  # days
+    web_analytics: 30  # days
+    social_media: 14  # days
+
+# Intent Scoring Configuration
+intent_scoring:
+  # High intent threshold (0-100)
+  high_intent_threshold: 70
+  medium_intent_threshold: 40
+
+  # Enable recency boost
+  recency_boost: true
+
+  # ICP fit multiplier
+  icp_fit_multiplier: 1.3
+
+  # Signal weights (customize based on your use case)
+  signals:
+    # Email signals (total: ~35%)
+    email_reply: 0.15
+    email_open: 0.05
+    email_click: 0.10
+    email_forward: 0.05
+
+    # Web signals (total: ~40%)
+    pricing_page_visit: 0.20
+    product_page_visit: 0.10
+    demo_request: 0.30
+    case_study_view: 0.05
+    return_visitor: 0.10
+    long_session: 0.05
+
+    # Social signals (total: ~15%)
+    linkedin_engagement: 0.08
+    twitter_mention: 0.05
+    social_share: 0.10
+
+    # Content signals (total: ~10%)
+    whitepaper_download: 0.15
+    webinar_attendance: 0.20
+    video_watch: 0.05
+
+# Ideal Customer Profile (ICP) - for firmographic fit scoring
+icp:
+  # Employee count range
+  employee_count:
+    min: 500
+    max: 5000
+    ideal_min: 1000
+    ideal_max: 2500
+
+  # Industries (list ideal industries)
+  industries:
+    - "SaaS"
+    - "Technology"
+    - "Software"
+    - "Fintech"
+    - "E-commerce"
+
+  # Minimum revenue (in USD)
+  min_revenue: 10000000  # $10M
+
+  # Minimum funding (in USD)
+  min_funding: 5000000  # $5M
+
+  # Complementary technologies (indicates good fit)
+  complementary_tech:
+    - "Salesforce"
+    - "HubSpot"
+    - "Segment"
+    - "Snowflake"
+    - "AWS"
+    - "Google Cloud Platform"
+
+# Outreach Configuration
+outreach:
+  # Default LLM settings
+  llm_provider: "openai"
+  model: "gpt-4"
+
+  # Default tone and style
+  default_tone: "professional"
+  default_length: "short"
+
+  # Personalization preferences
+  personalization:
+    include_personal_details: true
+    include_interests: true
+    include_recent_activity: true
+    max_personalization_points: 3  # Don't overdo it!

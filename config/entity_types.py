@@ -68,6 +68,66 @@ class Communication(BaseModel):
     )
 
 
+class WebPage(BaseModel):
+    """A web page visited by a contact"""
+    url: str = Field(..., description="Page URL")
+    title: Optional[str] = Field(None, description="Page title")
+    category: Optional[str] = Field(
+        None,
+        description="Page category: pricing, product, blog, case-study, demo, etc."
+    )
+
+
+class Technology(BaseModel):
+    """A technology or tool used by an account"""
+    name: str = Field(..., description="Technology name")
+    category: Optional[str] = Field(
+        None,
+        description="Category: CRM, marketing-automation, analytics, infrastructure, etc."
+    )
+    vendor: Optional[str] = Field(None, description="Technology vendor/provider")
+
+
+class SocialProfile(BaseModel):
+    """A social media profile"""
+    platform: str = Field(..., description="Platform: linkedin, twitter, facebook, etc.")
+    profile_url: Optional[str] = Field(None, description="Profile URL")
+    handle: Optional[str] = Field(None, description="Username/handle")
+
+
+class ContentAsset(BaseModel):
+    """A piece of content (whitepaper, case study, blog post, etc.)"""
+    title: str = Field(..., description="Content title")
+    content_type: Optional[str] = Field(
+        None,
+        description="Type: whitepaper, case-study, blog-post, video, webinar, etc."
+    )
+    topic: Optional[str] = Field(None, description="Main topic or theme")
+
+
+class Firmographic(BaseModel):
+    """Firmographic data about an account"""
+    attribute: str = Field(
+        ...,
+        description="Attribute: employee_count, revenue, funding, growth_rate, etc."
+    )
+    value: str = Field(..., description="Attribute value")
+    source: Optional[str] = Field(None, description="Data source")
+
+
+class IntentSignal(BaseModel):
+    """A buying intent signal"""
+    signal_type: str = Field(
+        ...,
+        description="Signal type: pricing_visit, demo_request, competitor_research, etc."
+    )
+    strength: Optional[str] = Field(
+        None,
+        description="Signal strength: high, medium, low"
+    )
+    context: Optional[str] = Field(None, description="Additional context")
+
+
 # Entity types dictionary for Graphiti
 ENTITY_TYPES = {
     'Contact': Contact,
@@ -76,4 +136,10 @@ ENTITY_TYPES = {
     'PersonalDetail': PersonalDetail,
     'Topic': Topic,
     'Communication': Communication,
+    'WebPage': WebPage,
+    'Technology': Technology,
+    'SocialProfile': SocialProfile,
+    'ContentAsset': ContentAsset,
+    'Firmographic': Firmographic,
+    'IntentSignal': IntentSignal,
 }

@@ -15,20 +15,27 @@ from pydantic import BaseModel
 
 from config.settings import get_settings
 from services.graphiti_service import GraphitiService
+from services.profile_builder import ProfileBuilder
+from services.intent_scorer import IntentScorer, IntentScoringConfig
+from services.outreach_personalizer import OutreachPersonalizer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Global service instance
+# Global service instances
 graphiti_service: Optional[GraphitiService] = None
+profile_builder: Optional[ProfileBuilder] = None
+intent_scorer: Optional[IntentScorer] = None
+outreach_personalizer: Optional[OutreachPersonalizer] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle"""
-    global graphiti_service
+    global graphiti_service, profile_builder, intent_scorer, outreach_personalizer
     settings = get_settings()
 
+    # Initialize GraphitiService
     graphiti_service = GraphitiService(
         neo4j_uri=settings.neo4j_uri,
         neo4j_user=settings.neo4j_user,
@@ -41,10 +48,41 @@ async def lifespan(app: FastAPI):
     await graphiti_service.connect()
     logger.info("Knowledge graph service connected")
 
+    # Initialize enrichment configs (from environment variables)
+    enrichment_configs = {}
+
+    if os.getenv('CLEARBIT_API_KEY'):
+        enrichment_configs['clearbit'] = {'api_key': os.getenv('CLEARBIT_API_KEY')}
+
+    if os.getenv('BUILTWITH_API_KEY'):
+        enrichment_configs['builtwith'] = {'api_key': os.getenv('BUILTWITH_API_KEY')}
+
+    if os.getenv('PDL_API_KEY'):
+        enrichment_configs['people-data-labs'] = {'api_key': os.getenv('PDL_API_KEY')}
+
+    # Initialize ProfileBuilder
+    profile_builder = ProfileBuilder(
+        graphiti_service=graphiti_service,
+        enrichment_configs=enrichment_configs
+    )
+    logger.info("Profile builder initialized")
+
+    # Initialize IntentScorer
+    intent_scorer = IntentScorer(config=IntentScoringConfig())
+    logger.info("Intent scorer initialized")
+
+    # Initialize OutreachPersonalizer
+    outreach_personalizer = OutreachPersonalizer(
+        llm_provider="openai",
+        model=os.getenv('OUTREACH_MODEL', 'gpt-4'),
+        api_key=settings.openai_api_key
+    )
+    logger.info("Outreach personalizer initialized")
+
     yield
 
     await graphiti_service.disconnect()
-    logger.info("Knowledge graph service disconnected")
+    logger.info("All services disconnected")
 
 
 app = FastAPI(
@@ -81,6 +119,23 @@ class QueryResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     service: str
+
+
+class ProfileRequest(BaseModel):
+    account_name: str
+    contact_email: Optional[str] = None
+    contact_name: Optional[str] = None
+    enrich: bool = True
+
+
+class OutreachRequest(BaseModel):
+    account_name: str
+    contact_email: Optional[str] = None
+    contact_name: Optional[str] = None
+    purpose: str = "intro"  # intro, follow_up, demo_request, value_prop
+    tone: str = "professional"  # professional, casual, friendly, urgent
+    length: str = "short"  # short, medium, long
+    channel: str = "email"  # email, linkedin, call_script
 
 
 # === Endpoints ===
@@ -187,6 +242,182 @@ async def get_account_graph(account_name: str):
 
     results = await graphiti_service.get_account_graph(account_name)
     return {"success": True, "graph": results}
+
+
+# === NEW: Comprehensive Profile & Sales Intelligence Endpoints ===
+
+@app.post("/api/profiles/contact")
+async def build_contact_profile(request: ProfileRequest):
+    """
+    Build comprehensive contact profile.
+
+    Aggregates data from:
+    - Knowledge graph (email, web, social events)
+    - Enrichment APIs (firmographics, technographics)
+    - Intent scoring
+    - Engagement analysis
+
+    Returns complete profile ready for sales outreach.
+    """
+    if not profile_builder:
+        raise HTTPException(status_code=503, detail="Profile builder not initialized")
+
+    try:
+        profile = await profile_builder.build_contact_profile(
+            account_name=request.account_name,
+            contact_email=request.contact_email,
+            contact_name=request.contact_name,
+            enrich=request.enrich
+        )
+
+        return {
+            "success": True,
+            "profile": profile
+        }
+    except Exception as e:
+        logger.error(f"Failed to build contact profile: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/profiles/account")
+async def build_account_profile(request: ProfileRequest):
+    """
+    Build comprehensive account profile.
+
+    Returns:
+    - All contacts at account
+    - Firmographics (industry, size, revenue, etc.)
+    - Technographics (tech stack)
+    - Engagement summary
+    - Intent signals
+    """
+    if not profile_builder:
+        raise HTTPException(status_code=503, detail="Profile builder not initialized")
+
+    try:
+        profile = await profile_builder.build_account_profile(
+            account_name=request.account_name,
+            enrich=request.enrich
+        )
+
+        return {
+            "success": True,
+            "profile": profile
+        }
+    except Exception as e:
+        logger.error(f"Failed to build account profile: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/outreach/generate")
+async def generate_outreach(request: OutreachRequest):
+    """
+    Generate personalized outreach content.
+
+    Uses LLM to create:
+    - Personalized email (subject + body)
+    - LinkedIn message
+    - Call script
+
+    Based on comprehensive profile data and intent signals.
+    """
+    if not profile_builder or not outreach_personalizer:
+        raise HTTPException(status_code=503, detail="Services not initialized")
+
+    try:
+        # Build profile first
+        profile = await profile_builder.build_contact_profile(
+            account_name=request.account_name,
+            contact_email=request.contact_email,
+            contact_name=request.contact_name,
+            enrich=True
+        )
+
+        # Generate outreach based on channel
+        if request.channel == "email":
+            result = await outreach_personalizer.generate_email(
+                profile=profile,
+                purpose=request.purpose,
+                tone=request.tone,
+                length=request.length
+            )
+        elif request.channel == "linkedin":
+            result = await outreach_personalizer.generate_linkedin_message(
+                profile=profile,
+                purpose=request.purpose
+            )
+        elif request.channel == "call_script":
+            result = await outreach_personalizer.generate_call_script(
+                profile=profile,
+                call_type=request.purpose
+            )
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown channel: {request.channel}")
+
+        return {
+            "success": True,
+            "outreach": result,
+            "profile_summary": {
+                "intent_score": profile.get('intent', {}).get('score'),
+                "intent_level": profile.get('intent', {}).get('level'),
+                "engagement_score": profile.get('engagement', {}).get('overall_score')
+            }
+        }
+    except Exception as e:
+        logger.error(f"Failed to generate outreach: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/accounts/{account_name}/intent")
+async def get_account_intent(account_name: str):
+    """
+    Calculate intent score for an account.
+
+    Analyzes all signals (email, web, social) to determine buying intent.
+    """
+    if not profile_builder:
+        raise HTTPException(status_code=503, detail="Profile builder not initialized")
+
+    try:
+        profile = await profile_builder.build_account_profile(
+            account_name=account_name,
+            enrich=False  # No need to enrich for intent scoring
+        )
+
+        return {
+            "success": True,
+            "intent": profile.get('intent_signals', []),
+            "engagement": profile.get('engagement_summary', {})
+        }
+    except Exception as e:
+        logger.error(f"Failed to get account intent: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/accounts/{account_name}/firmographics")
+async def get_account_firmographics(account_name: str, enrich: bool = True):
+    """
+    Get firmographic data for an account.
+
+    Optionally enriches with external APIs (Clearbit, etc.)
+    """
+    if not profile_builder:
+        raise HTTPException(status_code=503, detail="Profile builder not initialized")
+
+    try:
+        profile = await profile_builder.build_account_profile(
+            account_name=account_name,
+            enrich=enrich
+        )
+
+        return {
+            "success": True,
+            "firmographics": profile.get('firmographics', {}),
+            "technographics": profile.get('technographics', {})
+        }
+    except Exception as e:
+        logger.error(f"Failed to get firmographics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # === Main ===
