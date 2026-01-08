@@ -1,0 +1,721 @@
+{
+  "name": "Email Automation with Graphiti Knowledge Graph",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Lake B2B Website Contact Form\nTriggers when a customer fills in information via LakeB2B website and submits their information.\n\n**Now powered by Graphiti Knowledge Graph instead of Pinecone!**"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [0, 480],
+      "typeVersion": 1,
+      "id": "11861973-7f22-4a8d-96f3-a4bbc7c286e7",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "## Custom Automated Formatting Script\nPasses customer data from webhook into automated script to format data.\nHandles edge cases with missing fields as well.\n\n**Output includes lookup_id for Graphiti queries.**",
+        "height": 224,
+        "width": 224
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [336, 0],
+      "typeVersion": 1,
+      "id": "f2688017-5436-41ac-ac93-0dbdc15232f4",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "content": "## Graphiti Knowledge Graph\n\nReplaces Pinecone with a temporal knowledge graph that tracks:\n- Lead/contact entities\n- Relationships between people\n- Communication history\n- Personal details for personalization\n\n**API Endpoints:**\n- POST /api/leads/lookup\n- POST /api/leads\n- POST /api/leads/{id}/enrich\n- GET /api/leads/{id}/context",
+        "width": 280,
+        "height": 260
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [560, -20],
+      "typeVersion": 1,
+      "id": "8409e8e5-8780-4a88-a0ca-32e003020524",
+      "name": "Sticky Note - Graphiti Info"
+    },
+    {
+      "parameters": {
+        "content": "## Branch Logic\n\n**If lead exists:**\n- Pull rich context (communications, personal details, topics)\n- Use context for highly personalized prompt\n\n**If new lead:**\n- Create lead in knowledge graph\n- Generate research prompt for Perplexity",
+        "width": 256
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [784, 64],
+      "typeVersion": 1,
+      "id": "91702c6e-74c4-485e-aa6a-3d37d121f381",
+      "name": "Sticky Note8"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.GRAPHITI_API_URL || 'https://your-graphiti.railway.app' }}/api/leads/lookup",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"email\": \"{{ $json.email_norm }}\",\n  \"phone\": \"{{ $json.phone_norm }}\",\n  \"lookup_id\": \"{{ $json.lookup_id }}\"\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [624, 240],
+      "id": "graphiti-lookup-lead",
+      "name": "Graphiti: Lookup Lead",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "GRAPHITI_API_KEY_CREDENTIAL_ID",
+          "name": "Graphiti API Key"
+        }
+      },
+      "continueOnFail": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "db2215f1-3282-4e28-a927-8516d9a81c43",
+              "leftValue": "={{ $json.found }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [864, 240],
+      "id": "925c5174-8ea4-411f-bb80-93ff1fa7930e",
+      "name": "Lead Exists?"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=New LakeB2B contact form submission received.\n\nProvided contact information:\nName: {{ $('Format Data Script').item.json.full_name }}\nEmail: {{ $('Format Data Script').item.json.email_norm }}\nPhone: {{ $('Format Data Script').item.json.phone_norm }}\n\nInquiry Type: {{ $('Format Data Script').item.json[\"Inquiry Type\"] }}\nComments: {{ $('Format Data Script').item.json[\"Comments\"] }}\n\nThis is a NEW lead with no prior history in our system.",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are Prompt Writer (-), a lead-intelligence orchestration agent for LakeB2B.\n\nThis workflow is executed ONLY when the customer does NOT exist in LakeB2B's database.\nYou must treat this contact as a new lead.\n\nYour responsibility is to generate a clear, professional research prompt\nto be sent to Perplexity in order to enrich this new contact.\n\nYou will receive data ONLY from the LakeB2B contact form submission.\nNo verified historical profile exists for this person.\n\nFollow these rules strictly:\n\n1. Use ONLY the contact form data provided.\n   • Do NOT assume or invent any missing details.\n   • Do NOT treat any information as verified beyond what is explicitly provided.\n\n2. The research prompt should be framed to DISCOVER information, not confirm it.\n   • Ask Perplexity to identify the person's professional background.\n   • Ask Perplexity to determine current role, company, and seniority if available.\n   • Ask Perplexity to find public professional presence (LinkedIn, company site, news).\n\n3. The research prompt must focus on:\n   • Professional identity and career background\n   • Industry and functional relevance\n   • Decision-making or influence potential in a B2B context\n   • Relevance to LakeB2B's data, marketing, or partnership use cases\n\n4. Avoid personal, sensitive, or speculative information.\n   • Do NOT include age, personal life, or unverified assumptions.\n\n5. Do NOT explain your reasoning.\n   • Do NOT include analysis, commentary, or extra text.\n\nYou must output valid JSON in the following format and nothing else:\n\n{\n  \"customer_status\": \"new\",\n  \"perplexity_prompt\": \"<clear, professional research prompt>\"\n}\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [1184, 432],
+      "id": "0509c8c2-acc8-4d23-84ec-d70dc70c3310",
+      "name": "Prompt Writer (New Lead)",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Existing LakeB2B customer record retrieved from Knowledge Graph.\n\nVerified customer data:\nName: {{ $json.lead.full_name }}\nEmail: {{ $json.lead.email }}\nPhone: {{ $json.lead.phone }}\nCompany: {{ $json.lead.company || 'Unknown' }}\nTitle: {{ $json.lead.title || 'Unknown' }}\nStatus: {{ $json.lead.status }}\n\nKnowledge Graph Context:\n{{ $json.context?.summary || 'No prior context available' }}\n\nPrevious Communications: {{ ($json.context?.communications || []).length }} records\nPersonal Details Known: {{ ($json.context?.personal_details || []).length }} items\nTopics Discussed: {{ ($json.context?.topics || []).length }} topics\nTeam Members Who Contacted: {{ ($json.context?.team_contacts || []).length }} people\n\nLatest Form Submission:\nInquiry Type: {{ $('Format Data Script').item.json[\"Inquiry Type\"] }}\nComments: {{ $('Format Data Script').item.json[\"Comments\"] }}\n\nUse the verified customer data and context as the primary reference for personalization.",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are Prompt Writer (+), a lead-intelligence orchestration agent for LakeB2B.\n\nThis workflow is executed ONLY when the customer already exists in LakeB2B's knowledge graph.\nYou have access to rich context including:\n- Previous communications\n- Personal details (hobbies, family, interests)\n- Topics previously discussed\n- Which team members have contacted them before\n\nYour sole responsibility is to generate a high-quality research prompt\nto be sent to Perplexity for additional enrichment, PLUS incorporate\nthe existing context for personalization.\n\nFollow these rules strictly:\n\n1. Treat the knowledge graph data as the primary source of truth.\n   • Reference specific personal details if available.\n   • Mention previous topics of discussion if relevant.\n   • Note which team members have prior relationships.\n\n2. The Perplexity research prompt should:\n   • UPDATE existing knowledge (not duplicate it)\n   • Look for recent news, job changes, or company updates\n   • Identify any new opportunities or conversation angles\n\n3. Include a \"personalization_notes\" field with:\n   • Key personal details to reference in the email\n   • Previous conversation topics to follow up on\n   • Relationship context (who on our team knows them)\n\n4. Avoid personal, sensitive, or non-professional information.\n\n5. Do NOT explain your reasoning.\n\nYou must output valid JSON in the following format and nothing else:\n\n{\n  \"customer_status\": \"existing\",\n  \"perplexity_prompt\": \"<research prompt for updates>\",\n  \"personalization_notes\": {\n    \"personal_details\": [\"detail 1\", \"detail 2\"],\n    \"previous_topics\": [\"topic 1\", \"topic 2\"],\n    \"team_relationships\": [\"Sarah spoke with them last month\"]\n  }\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [1184, 32],
+      "id": "072cf956-2deb-4e3f-94b9-ef76f2fb10a6",
+      "name": "Prompt Writer (Existing Lead)",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"customer_status\": \"existing\",\n  \"perplexity_prompt\": \"Research recent updates about John Smith at Acme Corp...\",\n  \"personalization_notes\": {\n    \"personal_details\": [\"Has two kids\", \"Enjoys golf\"],\n    \"previous_topics\": [\"Data quality\", \"Integration timeline\"],\n    \"team_relationships\": [\"Sarah called them last month\"]\n  }\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [1392, 256],
+      "id": "d2bcca90-095e-4b15-8e3f-9d51be47d53e",
+      "name": "Structured Output Parser (Existing)"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"customer_status\": \"new\",\n  \"perplexity_prompt\": \"Research professional background of Jane Doe...\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [1392, 656],
+      "id": "57a4784b-1a96-456c-841e-430e5063dd78",
+      "name": "Structured Output Parser (New)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [1632, 224],
+      "id": "6bd06f63-9e38-4012-a597-e9a8ec1c3b92",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-4o-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [1744, 432],
+      "id": "7a18ffe2-918b-4934-b877-7e12da719f14",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "R9E0t4lRJYpSjQiy",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You will receive lead details, a research prompt, and optionally personalization notes.\n\nTask:\n1) Use the web search tool to research the person and their company.\n2) Draft a short, highly personalized outreach email.\n3) If personalization_notes are provided, USE THEM to make the email more personal.\n4) Return STRICT JSON exactly matching the schema below.\n\nInput lead details:\nName: {{ $json.output.full_name || $('Format Data Script').item.json.full_name }}\nEmail: {{ $json.output.email || $('Format Data Script').item.json.email_norm }}\nPhone: {{ $json.output.phone || $('Format Data Script').item.json.phone_norm }}\nInquiry Type: {{ $('Format Data Script').item.json[\"Inquiry Type\"] }}\nComments: {{ $('Format Data Script').item.json[\"Comments\"] }}\n\nCustomer Status: {{ $json.output.customer_status }}\n\nResearch prompt from upstream agent:\n{{ $json.output.perplexity_prompt }}\n\nPersonalization Notes (if existing customer):\n{{ JSON.stringify($json.output.personalization_notes || {}) }}\n\nOutput JSON schema (must match exactly):\n{\n  \"email\": {\n    \"to\": \"\",\n    \"subject\": \"\",\n    \"body_html\": \"\"\n  },\n  \"research_summary\": [\"...\"],\n  \"sources\": [\"...\"]\n}\n\nRules:\n- If personalization notes include personal details (hobbies, family), reference them naturally.\n- If they're an existing customer, acknowledge the prior relationship.\n- Only include facts you found online or from personalization notes. Do not invent details.\n- Keep the email 120–180 words, professional, with a clear CTA.\n- research_summary MUST be an array of strings.\n- sources MUST be an array of source URLs as strings.\n\nOutput rules:\nReturn ONLY valid JSON that matches the schema exactly.\nThe first character must be { and the last character must be }.\nDo not include markdown, code fences, commentary, or extra keys.",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [1840, 224],
+      "id": "123fe326-e682-4c9c-9311-9d3236c68f3d",
+      "name": "Web Search Agent",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Format Data Script').item.json.email_norm }}",
+        "subject": "={{ $json.output.email.subject }}",
+        "message": "={{ $json.output.email.body_html }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [2400, 224],
+      "id": "5ee15687-8b3f-4827-9403-69eac7ad8f2b",
+      "name": "Send Email",
+      "webhookId": "7a452080-df7d-428d-8fad-d7b189029f98",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "oKad2ZurkVlNiag7",
+          "name": "Gmail account"
+        }
+      },
+      "continueOnFail": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import re\nfrom datetime import datetime\n\ndef to_str(v):\n    \"\"\"\n    Safely convert any value (None/int/float/bool) into a trimmed string.\n    \"\"\"\n    if v is None:\n        return \"\"\n    if isinstance(v, str):\n        return v.strip()\n    return str(v).strip()\n\nresults = []\n\nfor item in _input.all():\n    j = item.json\n\n    # Extract raw fields safely\n    first_name = to_str(j.get(\"First Name\"))\n    last_name = to_str(j.get(\"Last Name\"))\n    full_name = f\"{first_name} {last_name}\".strip()\n\n    email_raw = to_str(j.get(\"Business Email\") or j.get(\"email\")).lower()\n    phone_raw = to_str(j.get(\"Phone\") or j.get(\"phone\"))\n\n    inquiry_type = to_str(j.get(\"Inquiry Type\"))\n    comments = to_str(j.get(\"Comments\"))\n    company = to_str(j.get(\"Company\") or j.get(\"company\"))\n    title = to_str(j.get(\"Title\") or j.get(\"title\"))\n\n    # Normalize phone to digits only\n    phone_digits = re.sub(r\"\\D\", \"\", phone_raw)\n\n    # Determine lookup ID (email first, else phone)\n    lookup_id = email_raw if email_raw else phone_digits\n\n    # Attach normalized fields for downstream nodes\n    j[\"full_name\"] = full_name\n    j[\"first_name\"] = first_name\n    j[\"last_name\"] = last_name\n    j[\"email_norm\"] = email_raw\n    j[\"phone_norm\"] = phone_digits\n    j[\"lookup_id\"] = lookup_id\n    j[\"company\"] = company\n    j[\"title\"] = title\n    j[\"created_at\"] = datetime.utcnow().isoformat() + \"Z\"\n\n    results.append(item)\n\nreturn results\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 240],
+      "id": "2021c092-44fb-4dd5-ac30-a99c0283ef4d",
+      "name": "Format Data Script"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Format Data Script').item.json.lookup_id || 'default_session' }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [1840, 608],
+      "id": "5a0853de-0fa8-4a6b-8a50-352fed89b5fe",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"email\": {\n    \"to\": \"john@example.com\",\n    \"subject\": \"Quick question about your data needs\",\n    \"body_html\": \"<p>Hi John,</p><p>...</p>\"\n  },\n  \"research_summary\": [\"Finding 1\", \"Finding 2\"],\n  \"sources\": [\"https://example.com/source1\", \"https://example.com/source2\"]\n}",
+        "autoFix": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [2048, 432],
+      "id": "a6b53f78-a97b-4eaf-a704-d3648c6cf48e",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [2000, 608],
+      "id": "1feef4ec-a384-4a75-a86f-a6ef412d8400",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "qeCqxO2yrkR1X5bX",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-4o-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [1040, 240],
+      "id": "170160a2-f07e-47d0-aaef-ce56b4959491",
+      "name": "OpenRouter Chat Model (Existing)",
+      "credentials": {
+        "openRouterApi": {
+          "id": "R9E0t4lRJYpSjQiy",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-4o-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [1040, 640],
+      "id": "bdf5efdd-c580-4a29-9c1e-31e9c254223c",
+      "name": "OpenRouter Chat Model (New)",
+      "credentials": {
+        "openRouterApi": {
+          "id": "R9E0t4lRJYpSjQiy",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [144, 240],
+      "id": "76c025cb-ff87-45c8-992b-a02e8d189a76",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.GRAPHITI_API_URL || 'https://your-graphiti.railway.app' }}/api/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"full_name\": \"{{ $json.full_name }}\",\n  \"email\": \"{{ $json.email_norm }}\",\n  \"phone\": \"{{ $json.phone_norm }}\",\n  \"lookup_id\": \"{{ $json.lookup_id }}\",\n  \"Inquiry Type\": \"{{ $json['Inquiry Type'] || '' }}\",\n  \"Comments\": \"{{ $json['Comments'] || '' }}\",\n  \"company\": \"{{ $json.company || '' }}\",\n  \"title\": \"{{ $json.title || '' }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 400],
+      "id": "graphiti-create-lead",
+      "name": "Graphiti: Create Lead",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "GRAPHITI_API_KEY_CREDENTIAL_ID",
+          "name": "Graphiti API Key"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.GRAPHITI_API_URL || 'https://your-graphiti.railway.app' }}/api/leads/{{ encodeURIComponent($('Format Data Script').item.json.lookup_id) }}/enrich",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lookup_id\": \"{{ $('Format Data Script').item.json.lookup_id }}\",\n  \"research_summary\": {{ JSON.stringify($json.output?.research_summary || []) }},\n  \"sources\": {{ JSON.stringify($json.output?.sources || []) }},\n  \"email_subject\": \"{{ $json.output?.email?.subject || '' }}\",\n  \"email_sent\": true\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2192, 224],
+      "id": "graphiti-enrich-lead",
+      "name": "Graphiti: Enrich Lead",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "GRAPHITI_API_KEY_CREDENTIAL_ID",
+          "name": "Graphiti API Key"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "triggerOn": "allErrors"
+      },
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [0, 700],
+      "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "SLACK_CHANNEL_ID"
+        },
+        "text": "=:warning: *Email Automation Workflow Error*\n\n*Error Message:* {{ $json.error.message }}\n*Node:* {{ $json.error.node.name }}\n*Workflow:* {{ $json.workflow.name }}\n*Execution ID:* {{ $json.execution.id }}\n*Time:* {{ new Date().toISOString() }}\n\n*Lead Info:*\n- Lookup ID: {{ $json.error.node.parameters?.lookup_id || 'N/A' }}\n\nPlease check the n8n execution logs for more details.",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [200, 700],
+      "id": "d4e5f6a7-b8c9-0123-def4-567890123456",
+      "name": "Slack Error Notification",
+      "credentials": {
+        "slackApi": {
+          "id": "SLACK_CREDENTIAL_ID",
+          "name": "Slack API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "perplexity_web_search",
+        "description": "Search the web for current information about a person, company, or topic. Use this to research leads and gather professional background information. Returns relevant facts and source URLs.",
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"perplexity/sonar\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a research assistant. Search the web and provide factual information with source URLs. Focus on professional and business information. Return a concise summary with citations.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{query}\"\n    }\n  ],\n  \"max_tokens\": 1024\n}",
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "query",
+              "description": "The search query to research. Include person name, company, or topic to search for."
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [1920, 432],
+      "id": "f8e2c4a1-9b3d-4e5f-8a6c-7d8e9f0a1b2c",
+      "name": "Perplexity Web Search Tool",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENROUTER_HEADER_AUTH_ID",
+          "name": "OpenRouter API Key"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Graphiti: Lookup Lead": {
+      "main": [
+        [
+          {
+            "node": "Lead Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Exists?": {
+      "main": [
+        [
+          {
+            "node": "Prompt Writer (Existing Lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prompt Writer (New Lead)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser (Existing)": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Prompt Writer (Existing Lead)",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser (New)": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Prompt Writer (New Lead)",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt Writer (New Lead)": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Prompt Writer (Existing Lead)": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Web Search Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Web Search Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web Search Agent": {
+      "main": [
+        [
+          {
+            "node": "Graphiti: Enrich Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graphiti: Enrich Lead": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Data Script": {
+      "main": [
+        [
+          {
+            "node": "Graphiti: Lookup Lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Graphiti: Create Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Web Search Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Structured Output Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model (Existing)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Prompt Writer (Existing Lead)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model (New)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Prompt Writer (New Lead)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perplexity Web Search Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Web Search Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Web Search Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Format Data Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Slack Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "versionId": "graphiti-v2.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "graphiti-knowledge-graph-integration"
+  },
+  "id": "graphiti-email-automation",
+  "tags": ["graphiti", "email-automation", "knowledge-graph"]
+}

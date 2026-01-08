@@ -15,6 +15,11 @@ load_dotenv()
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
 
+    # API Configuration
+    api_host: str = Field(default="0.0.0.0")
+    api_port: int = Field(default=8080)
+    api_key: Optional[str] = Field(default=None, description="API key for authentication (optional in dev)")
+
     # OpenRouter/OpenAI Configuration
     openai_api_key: str = Field(default="")
     openai_base_url: Optional[str] = Field(default="https://openrouter.ai/api/v1")
