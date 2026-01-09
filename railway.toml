@@ -2,14 +2,17 @@
 # https://docs.railway.app/reference/config-as-code
 
 [build]
-builder = "DOCKERFILE"
-dockerfilePath = "./Dockerfile"
+# Use Nixpacks (Railway's default builder) instead of Dockerfile
+# This is more reliable for Python projects on Railway
+builder = "NIXPACKS"
 
 [deploy]
+# Start command - this is the most important part!
+startCommand = "uvicorn api_server:app --host 0.0.0.0 --port ${PORT:-8080}"
+
 # Health check configuration
 healthcheckPath = "/health"
 healthcheckTimeout = 30
-startCommand = "python -m uvicorn api_server:app --host 0.0.0.0 --port $PORT"
 
 # Resource configuration
 numReplicas = 1
