@@ -242,6 +242,19 @@ CHAMP-Graph/
 └── requirements.txt
 ```
 
+## Gmail OAuth
+
+`setup_gmail_oauth.py` and `get_gmail_token.py` load the Google OAuth client from the environment. They exit with an error that names the missing variable when it is not configured.
+
+Set both of these in `.env` (see `.env.example`):
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+
+Or leave those unset and set `GOOGLE_CLIENT_SECRETS_FILE` to the OAuth client JSON downloaded from [Google Cloud Console](https://console.cloud.google.com/apis/credentials). The file must contain `client_id` and `client_secret` on an `installed` or `web` client. `client_secret*.json` and `client_secrets.json` are listed in `.gitignore`.
+
+Keep the client secret in the environment or that gitignored file. A client secret was previously committed in the setup scripts. Rotate it in Google Cloud Console and put only the new value in the environment or the gitignored JSON file. This repository does not rewrite git history, so the old value remains in earlier commits until it is revoked.
+
 ## Environment Variables
 
 | Variable | Required | Default | Description |
@@ -253,6 +266,11 @@ CHAMP-Graph/
 | `NEO4J_URI` | Yes | `bolt://localhost:7687` | Neo4j connection |
 | `NEO4J_USER` | No | `neo4j` | Neo4j username |
 | `NEO4J_PASSWORD` | Yes | — | Neo4j password |
+| `GOOGLE_CLIENT_ID` | For Gmail | — | Gmail OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | For Gmail | — | Gmail OAuth client secret (never commit this) |
+| `GOOGLE_CLIENT_SECRETS_FILE` | For Gmail setup | — | Path to a gitignored OAuth client JSON; used when the client ID and secret above are unset |
+| `GOOGLE_REFRESH_TOKEN` | For Gmail | — | OAuth refresh token from `setup_gmail_oauth.py` or `get_gmail_token.py` |
+| `GOOGLE_USER_EMAIL` | For Gmail | — | Authenticated Gmail address |
 | `TEAM_DOMAINS` | Yes | — | Comma-separated internal email domains |
 | `API_HOST` | No | `0.0.0.0` | API bind host |
 | `API_PORT` | No | `8080` | API bind port |

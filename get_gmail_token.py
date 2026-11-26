@@ -4,13 +4,17 @@ Gmail OAuth Token Generator - Manual Flow
 
 This script generates the OAuth URL for you to visit manually,
 then you paste the authorization code back to get your refresh token.
+
+The OAuth client id and secret are read from GOOGLE_CLIENT_ID and
+GOOGLE_CLIENT_SECRET, or from the JSON file at GOOGLE_CLIENT_SECRETS_FILE.
 """
 import os
+import sys
 import urllib.parse
 
-# Your OAuth credentials
-CLIENT_ID = "372390598634-np9bl9qjg841vjrj6i8e65iv8jilij49.apps.googleusercontent.com"
-CLIENT_SECRET = "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"
+from dotenv import load_dotenv
+
+from config.google_oauth import GoogleOAuthConfigError, load_google_oauth_client
 
 # Gmail API scopes
 SCOPES = [
@@ -20,12 +24,22 @@ SCOPES = [
 REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"  # For manual copy/paste flow
 
 
-def generate_auth_url():
+def require_oauth_client() -> tuple[str, str]:
+    """Load the OAuth client or exit with a message naming what to set."""
+    load_dotenv()
+    try:
+        return load_google_oauth_client()
+    except GoogleOAuthConfigError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        raise SystemExit(1)
+
+
+def generate_auth_url(client_id: str) -> str:
     """Generate the OAuth authorization URL"""
     base_url = "https://accounts.google.com/o/oauth2/v2/auth"
 
     params = {
-        "client_id": CLIENT_ID,
+        "client_id": client_id,
         "redirect_uri": REDIRECT_URI,
         "response_type": "code",
         "scope": " ".join(SCOPES),
@@ -37,15 +51,15 @@ def generate_auth_url():
     return url
 
 
-def exchange_code_for_tokens(auth_code):
+def exchange_code_for_tokens(auth_code: str, client_id: str, client_secret: str):
     """Exchange authorization code for access and refresh tokens"""
     import requests
 
     token_url = "https://oauth2.googleapis.com/token"
 
     data = {
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
+        "client_id": client_id,
+        "client_secret": client_secret,
         "code": auth_code,
         "grant_type": "authorization_code",
         "redirect_uri": REDIRECT_URI,
@@ -61,7 +75,7 @@ def exchange_code_for_tokens(auth_code):
     return response.json()
 
 
-def test_token(access_token):
+def test_token(access_token: str):
     """Test the access token by getting user profile"""
     import requests
 
@@ -76,7 +90,7 @@ def test_token(access_token):
     return None
 
 
-def update_env_file(refresh_token, email):
+def update_env_file(refresh_token: str, email: str) -> None:
     """Update .env file with the refresh token"""
     env_path = os.path.join(os.path.dirname(__file__), '.env')
 
@@ -103,16 +117,16 @@ def update_env_file(refresh_token, email):
     with open(env_path, 'w') as f:
         f.write(content)
 
-    print(f"\n[OK] Updated .env with refresh token and email")
+    print("\n[OK] Updated .env with refresh token and email")
 
 
-def main():
+def main(client_id: str, client_secret: str) -> None:
     print("=" * 70)
     print("Gmail OAuth Token Generator")
     print("=" * 70)
 
     # Step 1: Generate auth URL
-    auth_url = generate_auth_url()
+    auth_url = generate_auth_url(client_id)
 
     print("\nSTEP 1: Open this URL in your browser:")
     print("-" * 70)
@@ -132,7 +146,7 @@ def main():
 
     # Step 3: Exchange code for tokens
     print("\nExchanging code for tokens...")
-    tokens = exchange_code_for_tokens(auth_code)
+    tokens = exchange_code_for_tokens(auth_code, client_id, client_secret)
 
     if not tokens:
         print("Failed to get tokens. Please try again.")
@@ -170,13 +184,16 @@ def main():
 
 
 if __name__ == "__main__":
+    # Fail before installing dependencies when credentials are absent.
+    client_id, client_secret = require_oauth_client()
+
     # Check for requests library
     try:
-        import requests
+        import requests  # noqa: F401
     except ImportError:
         print("Installing requests library...")
         import subprocess
         subprocess.run(["pip", "install", "requests"])
-        import requests
+        import requests  # noqa: F401
 
-    main()
+    main(client_id, client_secret)

@@ -124,7 +124,8 @@ CHAMP-Graph/
 ├── railway.toml               # Railway deployment config
 ├── .dockerignore              # Docker build exclusions
 ├── test_setup.py              # Setup verification tests
-├── setup_gmail_oauth.py       # Gmail OAuth setup wizard
+├── setup_gmail_oauth.py       # Gmail OAuth setup wizard (credentials from env)
+├── get_gmail_token.py         # Manual Gmail OAuth code flow (credentials from env)
 │
 ├── api/                       # API layer
 │   ├── auth.py                # X-API-Key middleware (verify_api_key dependency)
@@ -138,6 +139,7 @@ CHAMP-Graph/
 │
 ├── config/                    # Configuration & graph schema
 │   ├── settings.py            # Pydantic BaseSettings (env vars) + api_key field
+│   ├── google_oauth.py        # OAuth client id/secret loader (env or gitignored JSON)
 │   ├── entity_types.py        # Node type definitions + ENTITY_TYPES dict (8 types)
 │   ├── edge_types.py          # Edge type definitions + EDGE_TYPE_MAP (16 types)
 │   └── accounts.py            # Target account configs
@@ -340,9 +342,10 @@ CHAMP-Graph/
 | `NEO4J_URI` | Yes | `bolt://localhost:7687` | Neo4j connection |
 | `NEO4J_USER` | Yes | `neo4j` | Neo4j username |
 | `NEO4J_PASSWORD` | Yes | — | Neo4j password |
-| `GOOGLE_CLIENT_ID` | For Gmail | — | Gmail OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | For Gmail | — | Gmail OAuth secret |
-| `GOOGLE_REFRESH_TOKEN` | For Gmail | — | OAuth refresh token (from `setup_gmail_oauth.py`) |
+| `GOOGLE_CLIENT_ID` | For Gmail | — | Gmail OAuth client ID. Read by `setup_gmail_oauth.py` and `get_gmail_token.py`. |
+| `GOOGLE_CLIENT_SECRET` | For Gmail | — | Gmail OAuth client secret. Never commit this. |
+| `GOOGLE_CLIENT_SECRETS_FILE` | For Gmail setup | — | Optional path to a gitignored OAuth client JSON (`installed` or `web`, with `client_id` and `client_secret`). Used when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are unset. |
+| `GOOGLE_REFRESH_TOKEN` | For Gmail | — | OAuth refresh token (from `setup_gmail_oauth.py` or `get_gmail_token.py`) |
 | `GOOGLE_USER_EMAIL` | For Gmail | — | Authenticated Gmail address |
 | `MS_CLIENT_ID` | For Outlook | — | Azure AD client ID |
 | `MS_CLIENT_SECRET` | For Outlook | — | Azure AD secret |
@@ -351,6 +354,8 @@ CHAMP-Graph/
 | `TEAM_DOMAINS` | Yes | — | Comma-separated internal domains (for direction detection) |
 | `API_HOST` | No | `0.0.0.0` | API bind host |
 | `API_PORT` | No | `8080` | API bind port |
+
+`setup_gmail_oauth.py` and `get_gmail_token.py` exit with an error naming the missing variable when the OAuth client is not configured. A client secret was previously committed in those scripts. Rotate it in Google Cloud Console and store only the new value in the environment or the gitignored JSON file. Git history was not rewritten, so the old value remains in earlier commits until it is revoked.
 
 ---
 
@@ -468,7 +473,8 @@ python api_server.py
 # Verify setup (Neo4j, Graphiti, config)
 python test_setup.py
 
-# Setup Gmail OAuth (one-time)
+# Setup Gmail OAuth (one-time). Requires GOOGLE_CLIENT_ID and
+# GOOGLE_CLIENT_SECRET, or GOOGLE_CLIENT_SECRETS_FILE.
 python setup_gmail_oauth.py
 
 # Neo4j Browser
