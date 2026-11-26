@@ -1,6 +1,8 @@
 .git
 .gitignore
 .env
+client_secret*.json
+client_secrets.json
 .venv
 venv
 __pycache__

@@ -5,6 +5,10 @@
 credentials.json
 token.json
 token.pickle
+# Downloaded Google OAuth client JSON (contains the client secret).
+# Point GOOGLE_CLIENT_SECRETS_FILE at this file; never commit it.
+client_secret*.json
+client_secrets.json
 
 # Python
 __pycache__/

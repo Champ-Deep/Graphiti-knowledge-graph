@@ -4,12 +4,16 @@ Gmail OAuth Setup Script
 
 This script helps you obtain OAuth refresh tokens for Gmail API access.
 Run this script once to authorize access and get your refresh token.
+
+The OAuth client id and secret are read from GOOGLE_CLIENT_ID and
+GOOGLE_CLIENT_SECRET, or from the JSON file at GOOGLE_CLIENT_SECRETS_FILE.
 """
 import os
-import json
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
+import sys
+
+from dotenv import load_dotenv
+
+from config.google_oauth import GoogleOAuthConfigError, load_google_oauth_client
 
 # Gmail API scope - read-only access to emails
 SCOPES = [
@@ -17,19 +21,26 @@ SCOPES = [
     'https://www.googleapis.com/auth/gmail.metadata',
 ]
 
-# Your OAuth credentials
-CLIENT_ID = "372390598634-np9bl9qjg841vjrj6i8e65iv8jilij49.apps.googleusercontent.com"
-CLIENT_SECRET = "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"
+
+def require_oauth_client() -> tuple[str, str]:
+    """Load the OAuth client or exit with a message naming what to set."""
+    load_dotenv()
+    try:
+        return load_google_oauth_client()
+    except GoogleOAuthConfigError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        raise SystemExit(1)
 
 
-def get_credentials():
+def get_credentials(client_id: str, client_secret: str):
     """Run OAuth flow and return credentials"""
+    from google_auth_oauthlib.flow import InstalledAppFlow
 
-    # Create client config
+    # Create client config from environment-provided credentials.
     client_config = {
         "installed": {
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
+            "client_id": client_id,
+            "client_secret": client_secret,
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
             "redirect_uris": ["http://localhost:8080/", "urn:ietf:wg:oauth:2.0:oob"]
@@ -57,6 +68,8 @@ def get_credentials():
 
 def test_gmail_access(credentials):
     """Test that we can access Gmail"""
+    from googleapiclient.discovery import build
+
     print("\nTesting Gmail access...")
 
     service = build('gmail', 'v1', credentials=credentials)
@@ -74,8 +87,9 @@ def test_gmail_access(credentials):
     return email
 
 
-def save_credentials(credentials, email):
+def save_credentials(credentials, email: str, client_id: str, client_secret: str) -> None:
     """Save credentials to .env file"""
+    import re
 
     env_path = os.path.join(os.path.dirname(__file__), '.env')
 
@@ -85,17 +99,15 @@ def save_credentials(credentials, email):
         with open(env_path, 'r') as f:
             env_content = f.read()
 
-    # Update Google credentials
+    # Update Google credentials from the values already loaded for this run.
     updates = {
-        'GOOGLE_CLIENT_ID': CLIENT_ID,
-        'GOOGLE_CLIENT_SECRET': CLIENT_SECRET,
+        'GOOGLE_CLIENT_ID': client_id,
+        'GOOGLE_CLIENT_SECRET': client_secret,
         'GOOGLE_REFRESH_TOKEN': credentials.refresh_token,
         'GOOGLE_USER_EMAIL': email,
     }
 
     for key, value in updates.items():
-        # Check if key exists and update, or add new
-        import re
         pattern = rf'^{key}=.*$'
         replacement = f'{key}={value}'
 
@@ -110,14 +122,16 @@ def save_credentials(credentials, email):
     print(f"\nCredentials saved to {env_path}")
 
 
-def main():
+def main() -> None:
+    client_id, client_secret = require_oauth_client()
+
     print("\n" + "=" * 60)
-    print("Gmail OAuth Setup for Email Knowledge Graph")
+    print("Gmail OAuth Setup for CHAMP Graph")
     print("=" * 60)
 
     try:
         # Get OAuth credentials
-        credentials = get_credentials()
+        credentials = get_credentials(client_id, client_secret)
 
         if not credentials.refresh_token:
             print("\n[WARNING] No refresh token received!")
@@ -130,12 +144,12 @@ def main():
         email = test_gmail_access(credentials)
 
         # Save to .env
-        save_credentials(credentials, email)
+        save_credentials(credentials, email, client_id, client_secret)
 
         print("\n" + "=" * 60)
         print("SUCCESS! Gmail OAuth setup complete.")
         print("=" * 60)
-        print(f"\nYour refresh token has been saved to .env")
+        print("\nYour refresh token has been saved to .env")
         print(f"Connected email: {email}")
         print("\nYou can now run the email sync scripts!")
         print("\nNext steps:")
